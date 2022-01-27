@@ -13,7 +13,7 @@ println!("UART Initialized");
 
     let mut n1:u8 = 1;
     let mut n2:u8;
-    let a:u8 = 10;
+    let a:u8 = 1;
     let mut buffer = [0u8;1];
 
     
