@@ -24,7 +24,7 @@ println!("UART Initialized");
         uart.write_bytes(&mut buffer).unwrap();
         thread::sleep(Duration::from_millis(200));
 
-        uart.read_csv(&mut buffer).unwrap(); 
+        uart.read_bytes(&mut buffer).unwrap(); 
         n1 = buffer[0];       
         println!("Pi gets {}", n1);
         if n1 > 244 { n1 = 1; }
