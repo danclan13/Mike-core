@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }}
         */ 
 
-        let mut direction = 0.0;
+        let mut direction = 900.0;
 
         let mut angle1 = PI/3.0+direction*PI/1800.0;
         let mut angle2 = PI/3.0-direction*PI/1800.0;
@@ -64,18 +64,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         //let mut vx = outputx.output;
 
         v = 50.0;
-        let vc = v*(angle1.cos())+80.0;
-        let va = v*(angle2.cos())+80.0;
-        let vb = -1.0*v*(angle3.cos())+80.0;
+        let va = v*(angle1.cos())+80.0;
+        let vb = v*(angle2.cos())+80.0;
+        let vc = -1.0*v*(angle3.cos())+80.0;
 
         //println!("{} {} {}", vc,va,vb);
         
-        //let mut buffer_w = [251,vc as u8,252,va as u8,253,vb as u8,0xA,0xD];
-        //i2c_imu.block_write(0x01, &mut buffer_w).unwrap_or_default();
+        let mut buffer_w = [251,va as u8,252,vb as u8,253,vc as u8,0xA,0xD];
+        i2c.block_write(0x01, &mut buffer_w).unwrap_or_default();
 
-        let mut buffer_r = [0u8;7];
-        i2c_imu.block_read(0x1E,&mut buffer_r).unwrap_or_default();
-        println!("block read with length {} using command 0x1E -> {:?} ", buffer_r.len(), buffer_r);
+        //let mut buffer_r = [0u8;7];
+        //i2c_imu.block_read(0x1E,&mut buffer_r).unwrap_or_default();
+        //println!("block read with length {} using command 0x1E -> {:?} ", buffer_r.len(), buffer_r);
         //println!("Lx: {} Vx: {}", direction, v);
         
 
