@@ -13,9 +13,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut uart = Uart::new(115_200, Parity::None, 8, 1)?;
     let mut i2c = I2c::new()?;
-    let mut i2c_imu = I2c::new()?;
+    let mut i2c_crane = I2c::new()?;
     i2c.set_slave_address(0x53)?;
-    i2c_imu.set_slave_address(0x57)?;
+    i2c_crane.set_slave_address(0x51)?;
     let mut v: f64;
     println!("State 1");
     //let mut pidx = Pid::new(2.50, 0.005, 0.02, 97.0, 97.0, 97.0, 97.0, 0.0);
@@ -53,25 +53,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         }}
         */ 
 
-        let mut direction = 900.0;
-
-        let mut angle1 = PI/3.0+direction*PI/1800.0;
-        let mut angle2 = PI/3.0-direction*PI/1800.0;
-        let mut angle3 = direction*PI/1800.0;
+        let direction = -300.0;         // when it reads the direction from pixy arduino - flip it and deduct 300.0
+        let angle1 = PI/3.0+direction*PI/1800.0;
+        let angle2 = PI/3.0-direction*PI/1800.0;
+        let angle3 = direction*PI/1800.0;
 
         println!("State 3");
         //let outputx = pidx.next_control_output(leaning_xpart);
         //let mut vx = outputx.output;
 
-        v = 50.0;
+        v = 0.0;
         let va = v*(angle1.cos())+80.0;
         let vb = v*(angle2.cos())+80.0;
         let vc = -1.0*v*(angle3.cos())+80.0;
 
         //println!("{} {} {}", vc,va,vb);
         
-        let mut buffer_w = [251,va as u8,252,vb as u8,253,vc as u8,0xA,0xD];
+        let buffer_w = [251,va as u8,252,vb as u8,253,vc as u8,0xA,0xD];
         i2c.block_write(0x01, &mut buffer_w).unwrap_or_default();
+        let cbuffer_w = [251,va as u8,252,vb as u8,253,vc as u8,0xA,0xD];
 
         //let mut buffer_r = [0u8;7];
         //i2c_imu.block_read(0x1E,&mut buffer_r).unwrap_or_default();
