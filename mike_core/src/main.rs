@@ -17,6 +17,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     i2c.set_slave_address(0x53)?;
     i2c_crane.set_slave_address(0x51)?;
     let mut v: f64;
+    let mut liftdone = 0;
+    let mut liftreport = 0;
     println!("State 1");
     //let mut pidx = Pid::new(2.50, 0.005, 0.02, 97.0, 97.0, 97.0, 97.0, 0.0);
 
@@ -69,10 +71,28 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         //println!("{} {} {}", vc,va,vb);
         
-        let buffer_w = [251,va as u8,252,vb as u8,253,vc as u8,0xA,0xD];
-        i2c.block_write(0x01, &mut buffer_w).unwrap_or_default();
-        let cbuffer_w = [251,va as u8,252,vb as u8,253,vc as u8,0xA,0xD];
+        let mut buffer_w = [0x01,251,va as u8,252,vb as u8,253,vc as u8,0xA,0xD];
+        i2c.write(&mut buffer_w).unwrap_or_default();
 
+
+
+
+        let mut cbuffer_r = [0;5];
+
+        i2c_crane.read(&mut cbuffer_r)?;
+        println!("write read with length {} -> {:?} ", cbuffer_r.len(), cbuffer_r);
+
+        if cbuffer_r[0] == 1 && cbuffer_r[1] == 112 && cbuffer_r[3] == 13 && cbuffer_r[4] == 10{
+            liftreport = cbuffer_r[2];
+        }
+        if liftreport == 1 {
+            liftdone = 1;
+            liftreport = 0;
+        }
+
+        let mut cbuffer_w = [0x01,241,liftdone as u8,242,40 as u8,243,40 as u8,0xA,0xD];
+        i2c_crane.write(&mut cbuffer_w).unwrap_or_default();
+        
         //let mut buffer_r = [0u8;7];
         //i2c_imu.block_read(0x1E,&mut buffer_r).unwrap_or_default();
         //println!("block read with length {} using command 0x1E -> {:?} ", buffer_r.len(), buffer_r);
