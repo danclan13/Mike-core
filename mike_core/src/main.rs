@@ -250,16 +250,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 
             }
 
-            // ADD A MODE IN BETWEEN FOR IMU REFERENCING
+            // ADD A MODE IN BETWEEN FOR IMU REFERENCING >>>
 
             /* 
             X =>{
                 uart.write("readi\r\n".to_string())?;
-                if imu_h != 0 && imu_refFlag == 0 {
-                   let mut h_ref = imu_h;  // <-- look at the imu_h = imu_h - h_ref before
-                   imu_refFlag = 1;
+                if imu_refFlag == 0 {          // let mut imu_h = 0; has to be declared before the loop
+                    if imu_h != 0 {
+                        let mut h_ref = imu_h;  // <-- look at the imu_h = imu_h - h_ref before
+                        imu_refFlag = 1;
+                    }
                 }
-
             }
             */
 
@@ -299,9 +300,26 @@ fn main() -> Result<(), Box<dyn Error>> {
                 if distance_sensor < 200{
                     uart.write("setmode 7c\r\n".to_string())?;
                 }
+                
                 // state is 6
                 // orignial plan - drive to bridge
             }
+
+            /* 
+            X2 =>{
+                if imu_h != 0 
+                {          // while not straight - rotate to
+                    if imu_h > 1800 {
+                        //rotate to the right slowly
+                    }
+                    else {
+                        //rotate to the left slowly
+                    }
+                }    
+                // offset to the vector starting point using Pixy          
+            }
+            */
+
             7 =>{
                 // state is 7
                 // deploy crane
