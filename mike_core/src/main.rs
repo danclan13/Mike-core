@@ -1,12 +1,16 @@
+//use core::num::dec2flt::float;
 use std::error::Error;
+//use std::hash::Hasher;
+//use std::result;
 use std::sync::mpsc::{channel, Sender, Receiver, TryRecvError};
 use std::thread;
 use std::char;
 use std::time::Duration;
 use rpi_embedded::uart::{Parity, Uart};
 use rpi_embedded::i2c::I2c;
+//extern crate pid;
+//use pid::Pid;
 pub const PI: f64 = 3.14159265358979323846264338327950288;
-
 
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -18,6 +22,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     i2c_crane.set_slave_address(0x51)?;
     let mut liftdone = 1;
     let mut liftreport = 0;
+    //println!("State 1");
+    //let mut pidx = Pid::new(2.50, 0.005, 0.02, 97.0, 97.0, 97.0, 97.0, 0.0);
     let s= uart.set_read_mode(0, Duration::new(0,0));
     match s{
         Ok(_n)=>{
@@ -33,9 +39,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut readpos: u8 = 0;
     let mut writepos: u8 = 0;
     let mut line_available:bool = false;
+    let mut normal_distance = 0;
+    let mut set_normal_distance = false;
 
     let mut v = 0;
-    let mut direction: i16 = 0;
+    let mut direction: i16;
     let mut camdirection: i16 = 0;
     let mut v_rot:i32;
     let mut direction_rot:i16 = 0;
@@ -44,47 +52,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut imu_d:i16;
     let mut distance_sensor: u8=0;
     
-    // thread communications
+// thread communications
     let (tx_i16,rx_i16): (Sender<String>,Receiver<String>) = channel();
     let (tx_i16_2,rx_i16_2): (Sender<String>,Receiver<String>) = channel();
     let (tx_i32,rx_i32): (Sender<String>,Receiver<String>) = channel();
     let (tx_str,rx_str): (Sender<String>,Receiver<String>) = channel();
-    thread::spawn(move||{
-        loop{
-            println!("Enter command type: \ns -serial command\nd -set drive direction\nv -set drive velocity");
-            let mut line = String::new();
+    create_input_thread(tx_i16,tx_i16_2,tx_i32,tx_str);
 
-            std::io::stdin().read_line(&mut line).unwrap();
-
-            if line.chars().nth(0).unwrap()>='d' && line.chars().nth(0).unwrap()<=' '{
-                line.remove(0);
-                line.remove(1);
-                line.pop();
-                tx_i16.send(line).expect("error sending value between threads");
-            }
-            else if line.chars().nth(0).unwrap()>='r' && line.chars().nth(0).unwrap()<=' '{
-                line.remove(0);
-                line.remove(1);
-                line.pop();
-                tx_i16_2.send(line).expect("error sending value between threads");
-            }
-            else if line.chars().nth(0).unwrap()>='v' && line.chars().nth(0).unwrap()<=' '{
-                line.remove(0);
-                line.remove(1);
-                line.pop();
-                tx_i32.send(line).expect("error sending value between threads");
-            }
-            else{
-                tx_str.send(line).expect("error sending value between threads");
-            }
-        }
-    });
-
+    // Set serial mode
+    uart.set_read_mode(0, Duration::default())?;
+    uart.set_write_mode(false)?;
     loop {
-        uart.set_read_mode(0, Duration::default())?;
-        uart.set_write_mode(false)?;
-        let received_dir=rx_i16.try_recv();
-        match received_dir{
+        //println!("State 2");
+        //thread::sleep(Duration::from_millis(1000));
+
+// get inputs from terminal
+        let received_serial=rx_i16.try_recv();
+        match received_serial{
             Ok(val)=>{
 
                 println!("{}",val);
@@ -235,16 +219,21 @@ fn main() -> Result<(), Box<dyn Error>> {
             // set mode command received
             if read[0 as usize] == 'S' && read[(1) as usize] == 'M' {
                 current_mode = read[(2 as u8) as usize] as u8-1;
-                //println!("set to mode: {}",current_mode);
+                println!("set to mode: {}",current_mode);
             }// set mode command received
             if read[0 as usize] == 'D' && read[(1) as usize] == 'S' {
                 distance_sensor = read[(2 as u8) as usize] as u8;
+                if set_normal_distance {
+                    normal_distance = distance_sensor;
+                    set_normal_distance = false;
+                }
                 println!("Distance sensor: {}",distance_sensor);
             }// rotate command received
             if read[0 as usize] == 'I' && read[(1 as u8) as usize] == 'M' {
                 imu_h = ((read[(2 as u8) as usize] as i16 )<<8) + (read[(3) as usize]as i16);
                 imu_l = ((read[(4 as u8) as usize] as i16 )<<8) + (read[(6) as usize]as i16);
                 imu_d = ((read[(6 as u8) as usize] as i16 )<<8) + (read[(9) as usize]as i16);
+                //imu_h = imu_h - h_ref;
               //  println!("H: {} \nL: {}\nD: {}",imu_h,imu_l,imu_d);
             }
         }
@@ -254,11 +243,30 @@ fn main() -> Result<(), Box<dyn Error>> {
             0 =>{
                 // state is 0
                 // default off mode
+                if normal_distance == 0{
+                    uart.write("distancei\r\n".to_string())?;
+                    set_normal_distance = true;
+                }
+                
             }
+
+            // ADD A MODE IN BETWEEN FOR IMU REFERENCING
+
+            /* 
+            X =>{
+                uart.write("readi\r\n".to_string())?;
+                if imu_h != 0 && imu_refFlag == 0 {
+                   let mut h_ref = imu_h;  // <-- look at the imu_h = imu_h - h_ref before
+                   imu_refFlag = 1;
+                }
+
+            }
+            */
+
             1 =>{
+
+
                 // state is 1
-                // Reference heading (referenced heading = IMU heading (now))
-                // From now heading = IMU heading - referenced heading
                 // drive up to starting line
                 // driven by camera arduino
             }
@@ -282,19 +290,30 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // follow line up to bridge - original plan drive to intersection
 
                 // read distance sensor
-                // when distance sesnor triggers change modes to mode 6 and send to camera
+                // when distance sesnor triggers change modes to mode 7 and send to camera
             }
             6 =>{
-                // drive slowly back until the distance sensor is sensing the floor
-                // drive slowly forward until the distance sensor triggers again
-                // rotate a bit until the heading is 0
-                // use camera to offset to the beginning of the bridge line vector
+                v=0;
+                camdirection=0;
+                direction_rot = 0;
+                if distance_sensor < 200{
+                    uart.write("setmode 7c\r\n".to_string())?;
+                }
+                // state is 6
+                // orignial plan - drive to bridge
             }
             7 =>{
                 // state is 7
                 // deploy crane
+                liftdone = 0;
+                v=0;
+                uart.write("setmode 8c\r\n".to_string())?;
             }
             8 =>{
+                v=0;
+                if liftdone == 1{
+                    uart.write("setmode 9c\r\n".to_string())?;
+                }
                 // state is 8
                 // wait for crane to finish
             }
@@ -302,6 +321,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // state is 9
                 // read distance senor to verify bridge is up
                 // if not, try again then verify and if failed again, jump to 17
+                    uart.write("distancei\r\n".to_string())?;
+                    if distance_sensor > 150{
+                        uart.write("setmode 10c\r\n".to_string())?;
+                    }
             }
             10 =>{
                 // state is 10
@@ -322,7 +345,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // state is 13
                 // drive from raspberry pi
                 // drive in circle
-                // speed of the right motor = 202/124 * speed of the left motor
                 // read IMU to read current heading
                 // switch to mode 15 when IMU is within 90° of original heading
             }
@@ -340,7 +362,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // press button to end
             }
 
-            
+/*
 // hill climbing code
             17 =>{
                 // state is 17
@@ -377,7 +399,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             24 =>{
                 // state is 24
                 // jump to 11
-            }
+            }*/
             _ =>{
                 // everything else
             }
@@ -398,11 +420,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         let vc = -1.0*(v as f64)*(angle3.cos())+80.0;
 
         if direction_rot > 20 {
-            let mut buffer_w = [0x01,251,(va as u8)+10,252,(vb as u8)+10,253,(vc as u8)-10,0xA,0xD];
+            let mut buffer_w = [0x01,251,(va as u8)-10,252,(vb as u8)-10,253,(vc as u8)-10,0xA,0xD];
         i2c.write(&mut buffer_w).unwrap_or_default();
         }
         else if direction_rot < -20 {
-            let mut buffer_w = [0x01,251,(va as u8)-10,252,(vb as u8)-10,253,(vc as u8)-10,0xA,0xD];
+            let mut buffer_w = [0x01,251,(va as u8)+10,252,(vb as u8)+10,253,(vc as u8)+10,0xA,0xD];
         i2c.write(&mut buffer_w).unwrap_or_default();
         }
         else{
@@ -415,6 +437,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 
 // crane operation
+
         let mut cbuffer_r = [0;5];
 
         i2c_crane.read(&mut cbuffer_r)?;
@@ -431,4 +454,64 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut cbuffer_w = [0x01,241,liftdone as u8,242,40 as u8,243,40 as u8,0xA,0xD];
         i2c_crane.write(&mut cbuffer_w).unwrap_or_default();
     }
+}
+
+fn create_input_thread(tx_i16: Sender<String>,tx_i16_2: Sender<String>,tx_i32: Sender<String>,tx_str: Sender<String>){
+    thread::spawn(move||{
+        loop{
+            println!("Enter command type: \ns -serial command\nd -set drive direction\nv -set drive velocity");
+            let mut line = String::new();
+            let mut line2 = String::new();
+            let mut line3 = String::new();
+            let mut line4 = String::new();
+            let mut line5 = String::new();
+/*
+            std::io::stdin().read_line(&mut line).unwrap();
+
+            if line.chars().nth(0).unwrap()>='d' && line.chars().nth(1).unwrap()<=' '{
+                line.remove(0);
+                line.remove(1);
+                line.pop();
+                tx_i16.send(line).expect("error sending value between threads");
+            }
+            else if line.chars().nth(0).unwrap()>='r' && line.chars().nth(1).unwrap()<=' '{
+                line.remove(0);
+                line.pop();
+                tx_i16_2.send(line).expect("error sending value between threads");
+            }
+            else if line.chars().nth(0).unwrap()>='v' && line.chars().nth(1).unwrap()<=' '{
+                line.remove(0);
+                line.pop();
+                tx_i32.send(line).expect("error sending value between threads");
+            }
+            else{
+                tx_str.send(line).expect("error sending value between threads");
+            }*/
+             //old code
+            std::io::stdin().read_line(&mut line).unwrap();
+            if line.chars().nth(0).unwrap() == 's'{
+                println!("Enter string to send over serial: ");
+                std::io::stdin().read_line(&mut line2).unwrap();
+                tx_str.send(line2).expect("error sending value between threads");
+            }
+            else if line.chars().nth(0).unwrap() == 'd'{
+                println!("Enter direction value from 0 to 3600: ");
+                std::io::stdin().read_line(&mut line3).unwrap();
+                line3.pop();
+                tx_i16.send(line3).expect("error sending value between threads");
+            }
+            else if line.chars().nth(0).unwrap() == 'r'{
+                println!("Enter rotation value from 0 to 3600: ");
+                std::io::stdin().read_line(&mut line5).unwrap();
+                line5.pop();
+                tx_i16_2.send(line5).expect("error sending value between threads");
+            }
+            else if line.chars().nth(0).unwrap() == 'v'{
+                println!("Enter velocity value from 0 to 50: ");
+                std::io::stdin().read_line(&mut line4).unwrap();
+                line4.pop();
+                tx_i32.send(line4).expect("error sending value between threads");
+            }
+        }
+    });
 }
